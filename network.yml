@@ -1,0 +1,137 @@
+---
+- name: Get stuff from FMC
+  hosts: all
+  gather_facts: false
+  connection: httpapi
+  tasks:
+    - name: Get Domain UUID
+      cisco.fmcansible.fmc_configuration:
+        operation: getAllDomain
+        register_as: domain
+
+    - name: Set UUID
+      ansible.builtin.set_fact:
+        domain_uuid: "{{ domain[0]['uuid'] }}"
+
+    - name: Debug domain
+      ansible.builtin.debug:
+        var: domain
+
+    - name: Execute 'getAllDevice' operation
+      cisco.fmcansible.fmc_configuration:
+        operation: "getAllDevice"
+        path_params:
+          domainUUID: "{{ item.uuid }}"
+      loop: "{{ domain }}"
+      register: alldevices
+
+    - name: Debug 'getAllDevice' operation
+      ansible.builtin.debug:
+        msg: "{{ item['response']['items'] }}"
+        # msg: "{{ ['response']['items'] }}"
+      loop: "{{ alldevices['results'] }}"
+
+    - name: Execute 'getDevice' operation
+      cisco.fmcansible.fmc_configuration:
+        operation: "getDevice"
+        path_params:
+          objectId: "{{ item.id }}"
+          # objectId: "{{ object_id }}"
+          domainUUID: "{{ domain_uuid }}"
+      loop: "{{ alldevices['results'][0]['response']['items'] }}"
+      register: device_response
+
+    - name: Debug domain
+      ansible.builtin.debug:
+        var: device_response
+
+    - name: Execute 'getAllAccessPolicy' operation
+      cisco.fmcansible.fmc_configuration:
+        operation: "getAllAccessPolicy"
+        path_params:
+          domainUUID: "{{ item.uuid }}"
+        query_params:
+            # name: "{{ name }}"
+            # filter: "{{ filter }}"
+            # offset: "{{ offset }}"
+            # limit: "{{ limit }}"
+            # expanded: "{{ expanded }}"
+      loop: "{{ domain }}"
+      register: "allAccessPolicy"
+
+    - name: debug "allAccessPolicy"
+      ansible.builtin.debug:
+        var: "allAccessPolicy"
+
+    # - name: Execute 'getAccessPolicy' operation
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: "getAccessPolicy"
+    #     path_params:
+    #         objectId: "{{ object_id }}"
+    #         domainUUID: "{{ domain_uuid }}"
+    #   loop: "{{ allAccessRule['response']['items'][0] }}"
+    #   register: accessPolicy
+
+    - name: Execute 'getAllAccessRule' operation
+      vars:
+        container_uuid: "005056BF-7B88-0ed3-0000-012885226097"
+      cisco.fmcansible.fmc_configuration:
+        operation: "getAllAccessRule"
+        path_params:
+          containerUUID: "{{ container_uuid }}"
+          domainUUID: "{{ domain_uuid }}"
+        query_params:
+            # filter: "{{ filter }}"
+            # offset: "{{ offset }}"
+            # limit: "{{ limit }}"
+            # expanded: "{{ expanded }}"
+      register: allAccessRule
+
+    - name: debug "allAccessRule"
+      ansible.builtin.debug:
+        var: "allAccessRule"
+
+    - name: Execute 'getAccessRule' operation
+      vars:
+        container_uuid: "005056BF-7B88-0ed3-0000-012885226097"
+      cisco.fmcansible.fmc_configuration:
+        operation: "getAccessRule"
+        path_params:
+          objectId: "{{ item.id }}"
+          containerUUID: "{{ container_uuid }}"
+          domainUUID: "{{ domain_uuid }}"
+      loop: "{{ allAccessRule['response']['items'] }}"
+      register: accessRule
+
+    - name: debug "accessRule"
+      ansible.builtin.debug:
+        var: "accessRule"      
+
+    # - name: Execute 'getAllFTDHADeviceContainer' operation
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: "getAllFTDHADeviceContainer"
+    #     path_params:
+    #         domainUUID: "{{ item.uuid }}"
+    #   loop: "{{ domain }}"
+    #   register: AllFTDHADeviceContainer
+
+    # - name: debug AllFTDHADeviceContainer
+    #   ansible.builtin.debug:
+    #     var: AllFTDHADeviceContainer
+
+    # - name: Execute 'createDeviceBackup' operation
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: "createDeviceBackup"
+    #     path_params:
+    #         domainUUID: "{{ item.uuid }}"
+    #   loop: "{{ domain }}"
+
+    # - name: Create a network object for Cisco FTD 1
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: createMultipleNetworkObject
+    #     data:
+    #       name: net15
+    #       value: 10.10.30.0/24
+    #       type: Network
+    #     path_params:
+    #       domainUUID: '{{ domain[0].uuid }}'
