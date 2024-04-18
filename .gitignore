@@ -1,3 +1,4 @@
 *-artifact*.json
 *.log
 collections/*
+inventory
