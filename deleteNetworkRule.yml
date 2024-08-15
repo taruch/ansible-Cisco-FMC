@@ -1,0 +1,88 @@
+---
+- name: Debug item
+  ansible.builtin.debug:
+    msg: "{{ item }}"
+    verbosity: 2
+
+- name: Get Access Policy ID for {{ item }} (Referred to as ContainerUUID later)
+  cisco.fmcansible.fmc_configuration:
+    operation: getAllAccessPolicy
+    path_params:
+      domainUUID: '{{ domain[0].uuid }}'
+    filters:
+      name: '{{ item }}'
+  register: accesspolicy 
+
+- name: Debug AllNetworkObjects
+  ansible.builtin.debug:
+    msg: "{{ accesspolicy }}"
+    verbosity: 2
+
+- name: Get all access rules in policy
+  cisco.fmcansible.fmc_configuration:
+    operation: "getAllAccessRule"
+    path_params:
+      containerUUID: "{{ accesspolicy.response[0].id }}"
+      domainUUID: "{{ domain[0].uuid }}"
+    # filters:
+    #   name: '{{ delete_accessrule_name }}'
+  register: allAccessRules
+
+- name: Debug allaccessrules 1
+  ansible.builtin.debug:
+    msg: "{{ allAccessRules }}"
+    verbosity: 2
+
+- name: Get Access Rule
+  loop: "{{ allAccessRules['response']['items'] }}"
+  loop_control:
+    loop_var: accessrule
+  cisco.fmcansible.fmc_configuration:
+    operation: "getAccessRule"
+    register_as: asListAccessRules
+    path_params:
+      objectId: "{{ accessrule.id }}"
+      containerUUID: "{{ accesspolicy.response[0].id }}"
+      domainUUID: "{{ domain[0].uuid }}"
+    # filters:
+    #   name: '{{ delete_accessrule_name }}'
+  register: listAccessRules
+
+- name: Debug accessrules 1
+  ansible.builtin.debug:
+    msg: "{{ asListAccessRules }}"
+    verbosity: 2
+
+- name: Debug accessrules 2
+  ansible.builtin.debug:
+    msg: "{{ listAccessRules }}"
+    verbosity: 2
+
+- name: Debug accessrule3
+  when: rule['ansible_facts']['asListAccessRules']['sourceNetworks']['objects'][0]['id'] == networkObject[0].id
+  loop: "{{ listAccessRules['results'] }}"
+  loop_control:
+    loop_var: rule
+  ansible.builtin.debug:
+    msg: "{{ rule['ansible_facts']['asListAccessRules'] }}"
+    verbosity: 2
+
+- name: Delete the access rules with the network object
+  when: rule['ansible_facts']['asListAccessRules']['sourceNetworks']['objects'][0]['id'] == networkObject[0].id
+  loop: "{{ listAccessRules['results'] }}"
+  loop_control:
+    loop_var: rule
+  cisco.fmcansible.fmc_configuration:
+    operation: deleteAccessRule
+    path_params:
+      objectId: "{{ rule['ansible_facts']['asListAccessRules']['id'] }}"
+      containerUUID: "{{ accesspolicy.response[0].id }}"
+      domainUUID: '{{ domain[0].uuid }}'
+
+# - name: Delete the access rules with the network object
+#   cisco.fmcansible.fmc_configuration:
+#     operation: deleteAccessRule
+#     path_params:
+#       objectId: '{{ accessrules[0].id }}'
+#       containerUUID: "{{ accesspolicy.response[0].id }}"
+#       domainUUID: '{{ domain[0].uuid }}'
