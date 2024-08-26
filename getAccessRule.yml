@@ -1,0 +1,109 @@
+- name: Debug access rule
+  ansible.builtin.debug:
+    msg: 
+      - "{{ rule.id }}"
+      - "{{ rule.name }}"
+      - "{{ rule.type }}"
+    verbosity: 2
+
+- name: Get Access Rule Policy for {{ rule.name }}
+  cisco.fmcansible.fmc_configuration:
+    operation: "getAccessRule"
+    register_as: accessRule
+    path_params:
+      objectId: "{{ rule.id }}"
+      containerUUID: "{{ accessPolicy.id }}"
+      domainUUID: "{{ domain[0].uuid }}"
+
+- name: Debug "accessRule" level 3 | {{ rule.name }}
+  ansible.builtin.debug:
+    var: accessRule
+    verbosity: 2
+
+- name: Debug "accessRule" level 2 | {{ rule.name }}
+  # loop: "{{ accessRule.sourceNetworks.objects }}"
+  # loop_control:
+  #   loop_var: rule_sub
+  ansible.builtin.debug:
+    msg:
+      - "Access Policy:  {{ accessPolicy.name }}"
+      - "Access Rule:    {{ rule.name }}"
+      - "Access Rule ID: {{ rule.id }}"
+    verbosity: 2
+
+- name: Define Source Networks from {{ rule.name }}
+  ansible.builtin.set_fact:
+    sourceNetworks: "{{ accessRule.sourceNetworks.objects | default([]) }}"
+
+- name: Debug sourceNetworks variable
+  ansible.builtin.debug:
+    msg: "{{ sourceNetworks | type_debug}}"
+
+- name: Create a fact
+  vars:
+    search_key: 'id'
+    search_val: "{{ networkObject[0].id }}"
+  ansible.builtin.set_fact:
+    networkObjectFound: "{{ sourceNetworks | selectattr(search_key,'equalto',search_val) | list }}"
+
+- name: Debug sourceNetworks variable
+  ansible.builtin.debug:
+    msg: "{{ networkObjectFound | type_debug}}"
+
+- name: Remove Network Object from Access Rule | {{ rule.name }}
+  when: networkObjectFound | count > 0 and sourceNetworks | count > 1
+    # This should run when there is more than one network object and
+    # one of the network objects is the object we want to delete
+  vars:
+    networkObjectRules: []
+  block:
+    - name: Create the list of Network Objects we don't want to delete
+      loop: "{{ sourceNetworks }}"
+      loop_control:
+        loop_var: rule_sub
+      when:  networkObject[0].id != rule_sub.id
+      ansible.builtin.set_fact:
+        networkObjectRules: "{{ networkObjectRules | default([]) + [ rule_sub ] }}"
+
+    - name: Debug "networkObjectRules" | List of network objects that we want to remain in the rule
+      when: networkObjectRules | count > 0
+      ansible.builtin.debug:
+        msg: "{{ networkObjectRules }}"
+        verbosity: 2
+
+    - name: Execute 'updateAccessRule' operation
+      cisco.fmcansible.fmc_configuration:
+        operation: "updateAccessRule"
+        data:
+          action: ALLOW
+          sourceNetworks:
+            objects: "{{ networkObjectRules }}"
+        path_params:
+          objectId: "{{ rule.id }}"
+          containerUUID: "{{ accessPolicy.id }}"
+          domainUUID: "{{ domain[0].uuid }}"
+        query_params:
+            partialUpdate: True
+
+    - name: Execute 'getAccessRule' operation
+      cisco.fmcansible.fmc_configuration:
+        operation: "getAccessRule"
+        register_as: accessRule
+        path_params:
+          objectId: "{{ rule.id }}"
+          containerUUID: "{{ accessPolicy.id }}"
+          domainUUID: "{{ domain[0].uuid }}"
+
+    - name: Debug "accessRule" level 3 | {{ rule.name }}
+      ansible.builtin.debug:
+        var: accessRule
+        verbosity: 2
+
+- name: Delete the Network Access Rule | {{ rule.name }}
+  when: networkObjectFound | count > 0 and sourceNetworks | count == 1
+  cisco.fmcansible.fmc_configuration:
+    operation: deleteAccessRule
+    path_params:
+      objectId: "{{ rule.id }}"
+      containerUUID: "{{ accessPolicy.id }}"
+      domainUUID: "{{ domain[0].uuid }}"

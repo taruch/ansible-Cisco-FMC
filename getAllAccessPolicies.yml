@@ -1,0 +1,91 @@
+---
+- name: Get stuff from FMC
+  hosts: all
+  gather_facts: false
+  connection: httpapi
+  vars:
+    accessPolicyName: 'AccessPolicy-hp-12'
+    networkObjectName: "{{ _networkObjectName | default('ansible-truchr-network1') }}"
+
+
+  tasks:
+    - name: Get Domain UUID
+      tags:
+        - always
+      cisco.fmcansible.fmc_configuration:
+        operation: getAllDomain
+        register_as: domain
+
+    - name: Debug domain
+      tags:
+        - always
+      ansible.builtin.debug:
+        var: domain
+        verbosity: 2
+
+    - name: Get NetworkObject id
+      cisco.fmcansible.fmc_configuration:
+        operation: "getAllNetworkObject"
+        register_as: networkObject
+        path_params:
+            domainUUID: "{{ domain[0].uuid }}"
+        filters:
+          name: "{{ networkObjectName }}"
+
+    - name: Check that NetworkObject exists
+      when: networkObject is undefined
+      block:
+        - name: End play if Network Object does not exist
+          debug:
+            msg: "{{ networkObjectName }} does not exist"
+
+        - meta: end_play
+
+    - name: Get All Access Policies
+      cisco.fmcansible.fmc_configuration:
+        operation: "getAllAccessPolicy"
+        register_as: AllAccessPolicies
+        filters:
+        path_params:
+          domainUUID: "{{ domain[0].uuid }}"
+        query_params:
+            # name: 'AP_test'
+            # name: "{{ name }}"
+            # filter: "{{ filter }}"
+            # offset: "{{ offset }}"
+            # limit: "{{ limit }}"
+            # expanded: "{{ expanded }}"
+
+    - name: debug "allAccessPolicy"
+      ansible.builtin.debug:
+        var: "AllAccessPolicies"
+        verbosity: 2
+
+    - name: Loop through and delete network rules from policies
+      loop: "{{ AllAccessPolicies }}"
+      loop_control:
+        loop_var: accessPolicy
+      when: 'accessPolicy.name == "AccessPolicy-hp-12"'
+      # or item.name == 'AccessPolicy-hp-13'
+      ansible.builtin.include_tasks:
+        file: ./getAccessRules.yml
+      # ansible.builtin.debug:
+      #   msg: "{{ item.name }}"
+
+    - name: delete network object
+      block:
+        - name: Execute 'deleteNetworkObject' operation
+          register: delete_output
+          vars:
+            object_id: "{{ networkObject[0].id }}"
+          cisco.fmcansible.fmc_configuration:
+            operation: "deleteNetworkObject"
+            path_params:
+                objectId: "{{ object_id }}"
+                domainUUID: "{{ domain[0].uuid }}"
+      rescue:
+        - name: Debug stuff
+          ansible.builtin.debug:
+            var: delete_output
+
+...

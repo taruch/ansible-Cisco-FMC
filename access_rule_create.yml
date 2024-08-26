@@ -2,37 +2,62 @@
   connection: httpapi
   gather_facts: false
   vars:
-    netobj1: AccessPolicy-hp-12
-    netobj2: AccessPolicy-hp-13
+    accessPolicy1: AccessPolicy-hp-12
+    accessPolicy2: AccessPolicy-hp-13
     troubleshooting: true
   tasks:
     - name: Get Domain
       cisco.fmcansible.fmc_configuration:
         operation: getAllDomain
         register_as: domain
+    
+    - name: Create network objects
+      block:
+        - name: create network object (1)
+          cisco.fmcansible.fmc_configuration:
+            operation: createMultipleNetworkObject
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+            data:
+              name: "ansible-truchr-network1"
+              value: "192.22.21.0/24"
+              type: "networkobject"
+            register_as: net1
 
-    - name: create network object (1)
-      cisco.fmcansible.fmc_configuration:
-        operation: createMultipleNetworkObject
-        path_params:
-          domainUUID: '{{ domain[0].uuid }}'
-        data:
-          name: "ansible-truchr-network1"
-          value: "192.22.21.0/24"
-          type: "networkobject"
-        register_as: net1
+        - name: create network object (2)
+          cisco.fmcansible.fmc_configuration:
+            operation: createMultipleNetworkObject
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+            data:
+              name: "ansible-truchr-network2"
+              value: "192.22.22.0/24"
+              type: "networkobject"
+            register_as: net2
 
-    - name: create network object (2)
-      cisco.fmcansible.fmc_configuration:
-        operation: createMultipleNetworkObject
-        path_params:
-          domainUUID: '{{ domain[0].uuid }}'
-        data:
-          name: "ansible-truchr-network2"
-          value: "192.22.22.0/24"
-          type: "networkobject"
-        register_as: net2
+        - name: create network object (3)
+          cisco.fmcansible.fmc_configuration:
+            operation: createMultipleNetworkObject
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+            data:
+              name: "ansible-truchr-network3"
+              value: "192.22.23.0/24"
+              type: "networkobject"
+            register_as: net3
+      
+        - name: create network object (3)
+          cisco.fmcansible.fmc_configuration:
+            operation: createMultipleNetworkObject
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+            data:
+              name: "ansible-truchr-network4"
+              value: "192.22.24.0/24"
+              type: "networkobject"
+            register_as: net4
 
+  
     # - name: Create Access Policy 1
     #   cisco.fmcansible.fmc_configuration:
     #     operation: "createAccessPolicy"
@@ -43,46 +68,57 @@
     #     path_params:
     #         domainUUID: "{{ domain[0].uuid }}"
 
-    - name: Get Access Policy 1
-      cisco.fmcansible.fmc_configuration:
-        operation: getAllAccessPolicy
-        path_params:
-          domainUUID: '{{ domain[0].uuid }}'
-        filters:
-          name: "{{ netobj1 }}"
-        register_as: accesspolicy
+    - name: Add network ojects to access policy
+      block:
+        - name: Get Access Policy 1
+          cisco.fmcansible.fmc_configuration:
+            operation: getAllAccessPolicy
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+            filters:
+              name: "{{ accessPolicy1 }}"
+            register_as: accesspolicy
 
-    - name: Create an access rule allowing trafic from Cisco DevNet (1.1)
-      cisco.fmcansible.fmc_configuration:
-        operation: upsertAccessRule
-        data:
-          name: AllowCiscoTraffic8.1
-          type: accessrule
-          sourceNetworks:
-            objects:
-              - id: '{{ net1.id }}'
-                name: '{{net1.name }}'
-                type: '{{ net1.type }}'
-          action: ALLOW
-        path_params:
-          containerUUID: '{{ accesspolicy[0].id }}'
-          domainUUID: '{{ domain[0].uuid }}'
+        - name: Create an access rule allowing trafic from Cisco DevNet (1.1)
+          cisco.fmcansible.fmc_configuration:
+            operation: upsertAccessRule
+            data:
+              name: AllowCiscoTraffic8.1
+              type: accessrule
+              sourceNetworks:
+                objects:
+                  - id: '{{ net1.id }}'
+                    name: '{{net1.name }}'
+                    type: '{{ net1.type }}'
+                  - id: '{{ net2.id }}'
+                    name: '{{net2.name }}'
+                    type: '{{ net2.type }}'
+                  - id: '{{ net3.id }}'
+                    name: '{{net3.name }}'
+                    type: '{{ net3.type }}'
+                  - id: '{{ net4.id }}'
+                    name: '{{net4.name }}'
+                    type: '{{ net4.type }}'
+              action: ALLOW
+            path_params:
+              containerUUID: '{{ accesspolicy[0].id }}'
+              domainUUID: '{{ domain[0].uuid }}'
 
-    - name: Create an access rule allowing trafic from Cisco DevNet (1.2)
-      cisco.fmcansible.fmc_configuration:
-        operation: upsertAccessRule
-        data:
-          name: AllowCiscoTraffic8.2
-          type: accessrule
-          sourceNetworks:
-            objects:
-              - id: '{{ net2.id }}'
-                name: '{{net2.name }}'
-                type: '{{ net2.type }}'
-          action: ALLOW
-        path_params:
-          containerUUID: '{{ accesspolicy[0].id }}'
-          domainUUID: '{{ domain[0].uuid }}'
+    # - name: Create an access rule allowing trafic from Cisco DevNet (1.2)
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: upsertAccessRule
+    #     data:
+    #       name: AllowCiscoTraffic8.2
+    #       type: accessrule
+    #       sourceNetworks:
+    #         objects:
+    #           - id: '{{ net2.id }}'
+    #             name: '{{net2.name }}'
+    #             type: '{{ net2.type }}'
+    #       action: ALLOW
+    #     path_params:
+    #       containerUUID: '{{ accesspolicy[0].id }}'
+    #       domainUUID: '{{ domain[0].uuid }}'
 
     # - name: Create Access Policy 2
     #   cisco.fmcansible.fmc_configuration:
@@ -94,73 +130,76 @@
     #     path_params:
     #         domainUUID: "{{ domain[0].uuid }}"
 
-    - name: Get all access rules in policy
-      cisco.fmcansible.fmc_configuration:
-        operation: "getAllAccessRule"
-        path_params:
-          containerUUID: "{{ accesspolicy[0].id }}"
-          domainUUID: "{{ domain[0].uuid }}"
-        # filters:
-        #   name: '{{ delete_accessrule_name }}'
-        register_as: allAccessRules
+    # - name: Get all access rules in policy
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: "getAllAccessRule"
+    #     path_params:
+    #       containerUUID: "{{ accesspolicy[0].id }}"
+    #       domainUUID: "{{ domain[0].uuid }}"
+    #     # filters:
+    #     #   name: '{{ delete_accessrule_name }}'
+    #     register_as: allAccessRules
 
-    - name: Debug allaccessrules
-      ansible.builtin.debug:
-        msg: "{{ allAccessRules }}"
-        verbosity: 2
+    # - name: Debug allaccessrules
+    #   ansible.builtin.debug:
+    #     msg: "{{ allAccessRules }}"
+    #     verbosity: 2
 
-    - name: Get Access Policy 2
-      cisco.fmcansible.fmc_configuration:
-        operation: getAllAccessPolicy
-        path_params:
-          domainUUID: '{{ domain[0].uuid }}'
-        filters:
-          name: "{{ netobj2 }}"
-        register_as: accesspolicy
+    # - name: Get Access Policy 2
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: getAllAccessPolicy
+    #     path_params:
+    #       domainUUID: '{{ domain[0].uuid }}'
+    #     filters:
+    #       name: "{{ netobj2 }}"
+    #     register_as: accesspolicy
 
-    - name: Create an access rule allowing trafic from Cisco DevNet (2.1)
-      cisco.fmcansible.fmc_configuration:
-        operation: upsertAccessRule
-        data:
-          name: AllowCiscoTraffic9.1
-          type: accessrule
-          sourceNetworks:
-            objects:
-              - id: '{{ net1.id }}'
-                name: '{{net1.name }}'
-                type: '{{ net1.type }}'
-          action: ALLOW
-        path_params:
-          containerUUID: '{{ accesspolicy[0].id }}'
-          domainUUID: '{{ domain[0].uuid }}'
+    # - name: Create an access rule allowing trafic from Cisco DevNet (2.1)
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: upsertAccessRule
+    #     data:
+    #       name: AllowCiscoTraffic9.1
+    #       type: accessrule
+    #       sourceNetworks:
+    #         objects:
+    #           - id: '{{ net1.id }}'
+    #             name: '{{net1.name }}'
+    #             type: '{{ net1.type }}'
+    #           - id: '{{ net2.id }}'
+    #             name: '{{net2.name }}'
+    #             type: '{{ net2.type }}'
+    #       action: ALLOW
+    #     path_params:
+    #       containerUUID: '{{ accesspolicy[0].id }}'
+    #       domainUUID: '{{ domain[0].uuid }}'
 
-    - name: Create an access rule allowing trafic from Cisco DevNet (2.2)
-      cisco.fmcansible.fmc_configuration:
-        operation: upsertAccessRule
-        data:
-          name: AllowCiscoTraffic9.2
-          type: accessrule
-          sourceNetworks:
-            objects:
-              - id: '{{ net2.id }}'
-                name: '{{net2.name }}'
-                type: '{{ net2.type }}'
-          action: ALLOW
-        path_params:
-          containerUUID: '{{ accesspolicy[0].id }}'
-          domainUUID: '{{ domain[0].uuid }}'
+    # - name: Create an access rule allowing trafic from Cisco DevNet (2.2)
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: upsertAccessRule
+    #     data:
+    #       name: AllowCiscoTraffic9.2
+    #       type: accessrule
+    #       sourceNetworks:
+    #         objects:
+    #           - id: '{{ net2.id }}'
+    #             name: '{{net2.name }}'
+    #             type: '{{ net2.type }}'
+    #       action: ALLOW
+    #     path_params:
+    #       containerUUID: '{{ accesspolicy[0].id }}'
+    #       domainUUID: '{{ domain[0].uuid }}'
 
-    - name: Get all access rules in policy
-      cisco.fmcansible.fmc_configuration:
-        operation: "getAllAccessRule"
-        path_params:
-          containerUUID: "{{ accesspolicy[0].id }}"
-          domainUUID: "{{ domain[0].uuid }}"
-        # filters:
-        #   name: '{{ delete_accessrule_name }}'
-        register_as: allAccessRules
+    # - name: Get all access rules in policy
+    #   cisco.fmcansible.fmc_configuration:
+    #     operation: "getAllAccessRule"
+    #     path_params:
+    #       containerUUID: "{{ accesspolicy[0].id }}"
+    #       domainUUID: "{{ domain[0].uuid }}"
+    #     # filters:
+    #     #   name: '{{ delete_accessrule_name }}'
+    #     register_as: allAccessRules
 
-    - name: Debug allaccessrules
-      ansible.builtin.debug:
-        msg: "{{ allAccessRules }}"
-        verbosity: 2
+    # - name: Debug allaccessrules
+    #   ansible.builtin.debug:
+    #     msg: "{{ allAccessRules }}"
+    #     verbosity: 2

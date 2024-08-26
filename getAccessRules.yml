@@ -1,0 +1,27 @@
+- name: Execute 'getAllAccessRule' operation - get rules in policy
+  # container_uuid is the AccessPolicy id
+  # Requires setting container_uuid for accesspolicy
+  cisco.fmcansible.fmc_configuration:
+    operation: "getAllAccessRule"
+    register_as: allAccessRules
+    path_params:
+      containerUUID: "{{ accessPolicy['id'] }}"
+      domainUUID: "{{ domain[0].uuid }}"
+    query_params:
+      # name: 'AllowCiscoTraffic8.1'
+      # filter: "{{ filter }}"
+      # offset: "{{ offset }}"
+      # limit: "{{ limit }}"
+      # expanded: "{{ expanded }}"
+
+- name: debug "allAccessRule"
+  ansible.builtin.debug:
+    var: "allAccessRules"
+    verbosity: 2
+
+- name: Loop through network rules from policies
+  loop: "{{ allAccessRules }}"
+  loop_control:
+    loop_var: rule
+  ansible.builtin.include_tasks:
+    file: ./getAccessRule.yml
