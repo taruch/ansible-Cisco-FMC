@@ -16,6 +16,11 @@
         operation: getAllDomain
         register_as: domain
 
+    - name: Fail when FMC does not return a valid UUID
+      fail:
+        msg: "{{ FMC did not return valid domain id }}"
+      when: domain | count == 0
+
     - name: Debug domain
       tags:
         - always
@@ -62,17 +67,17 @@
         verbosity: 2
 
     - name: Loop through and delete network rules from policies
+      # The "when" statement is going to skip any policies that don't match the
+      # accessPolicyName defined in vars at the top of the playbook.  This is just
+      # to make the testing go faster.
       loop: "{{ AllAccessPolicies }}"
       loop_control:
         loop_var: accessPolicy
-      when: 'accessPolicy.name == "AccessPolicy-hp-12"'
-      # or item.name == 'AccessPolicy-hp-13'
+      # when: 'accessPolicy.name == accessPolicyName'
       ansible.builtin.include_tasks:
         file: ./getAccessRules.yml
-      # ansible.builtin.debug:
-      #   msg: "{{ item.name }}"
 
-    - name: delete network object
+    - name: Delete the network object
       block:
         - name: Execute 'deleteNetworkObject' operation
           register: delete_output

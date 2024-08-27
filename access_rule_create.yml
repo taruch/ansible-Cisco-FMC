@@ -1,16 +1,21 @@
-- hosts: all
+- name: Create network objects and add to access rule
+  hosts: all
   connection: httpapi
   gather_facts: false
   vars:
     accessPolicy1: AccessPolicy-hp-12
-    accessPolicy2: AccessPolicy-hp-13
     troubleshooting: true
   tasks:
     - name: Get Domain
       cisco.fmcansible.fmc_configuration:
         operation: getAllDomain
         register_as: domain
-    
+
+    - name: Fail when FMC does not return a valid UUID
+      fail:
+        msg: "{{ FMC did not return valid domain id }}"
+      when: domain | count == 0
+
     - name: Create network objects
       block:
         - name: create network object (1)
@@ -46,7 +51,7 @@
               type: "networkobject"
             register_as: net3
       
-        - name: create network object (3)
+        - name: create network object (4)
           cisco.fmcansible.fmc_configuration:
             operation: createMultipleNetworkObject
             path_params:

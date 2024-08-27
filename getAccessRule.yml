@@ -35,20 +35,12 @@
   ansible.builtin.set_fact:
     sourceNetworks: "{{ accessRule.sourceNetworks.objects | default([]) }}"
 
-- name: Debug sourceNetworks variable
-  ansible.builtin.debug:
-    msg: "{{ sourceNetworks | type_debug}}"
-
-- name: Create a fact
+- name: Determine if network object is in source networks of the access rule | Set networkObjectFound
   vars:
     search_key: 'id'
     search_val: "{{ networkObject[0].id }}"
   ansible.builtin.set_fact:
     networkObjectFound: "{{ sourceNetworks | selectattr(search_key,'equalto',search_val) | list }}"
-
-- name: Debug sourceNetworks variable
-  ansible.builtin.debug:
-    msg: "{{ networkObjectFound | type_debug}}"
 
 - name: Remove Network Object from Access Rule | {{ rule.name }}
   when: networkObjectFound | count > 0 and sourceNetworks | count > 1
@@ -101,6 +93,8 @@
 
 - name: Delete the Network Access Rule | {{ rule.name }}
   when: networkObjectFound | count > 0 and sourceNetworks | count == 1
+    # This should run when there is only one network object and
+    # it is the network object we want to delete
   cisco.fmcansible.fmc_configuration:
     operation: deleteAccessRule
     path_params:

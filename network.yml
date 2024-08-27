@@ -3,109 +3,214 @@
   hosts: all
   gather_facts: false
   connection: httpapi
+  vars:
+    accessPolicyName: 'AccessPolicy-hp-13'
+
   tasks:
     - name: Get Domain UUID
+      tags:
+        - always
       cisco.fmcansible.fmc_configuration:
         operation: getAllDomain
         register_as: domain
 
-    - name: Set UUID
-      ansible.builtin.set_fact:
-        domain_uuid: "{{ domain[0]['uuid'] }}"
-
     - name: Debug domain
+      tags:
+        - always
       ansible.builtin.debug:
         var: domain
+        verbosity: 2
+    
+    - name: Get device data
+      tags:
+        - never
+        - getDevices
+      block:
+        - name: Execute 'getAllDevice' operation
+          cisco.fmcansible.fmc_configuration:
+            operation: "getAllDevice"
+            path_params:
+              domainUUID: "{{ domain[0].uuid }}"
+          register: alldevices
 
-    - name: Execute 'getAllDevice' operation
-      cisco.fmcansible.fmc_configuration:
-        operation: "getAllDevice"
-        path_params:
-          domainUUID: "{{ item.uuid }}"
-      loop: "{{ domain }}"
-      register: alldevices
+        - name: Debug 'getAllDevice' operation
+          loop: "{{ alldevices['results'] }}"
+          ansible.builtin.debug:
+            msg: "{{ item['response']['items'] }}"
+            # msg: "{{ ['response']['items'] }}"
+            verbosity: 2
 
-    - name: Debug 'getAllDevice' operation
-      ansible.builtin.debug:
-        msg: "{{ item['response']['items'] }}"
-        # msg: "{{ ['response']['items'] }}"
-      loop: "{{ alldevices['results'] }}"
+        - name: Execute 'getDevice' operation
+          loop: "{{ alldevices['results'][0]['response']['items'] }}"
+          cisco.fmcansible.fmc_configuration:
+            operation: "getDevice"
+            path_params:
+              objectId: "{{ item.id }}"
+              # objectId: "{{ object_id }}"
+              domainUUID: "{{ domain[0].uuid }}"
+          register: device_response
 
-    - name: Execute 'getDevice' operation
-      cisco.fmcansible.fmc_configuration:
-        operation: "getDevice"
-        path_params:
-          objectId: "{{ item.id }}"
-          # objectId: "{{ object_id }}"
-          domainUUID: "{{ domain_uuid }}"
-      loop: "{{ alldevices['results'][0]['response']['items'] }}"
-      register: device_response
+        - name: Debug getDevice response
+          ansible.builtin.debug:
+            var: device_response
+            verbosity: 2
 
-    - name: Debug domain
-      ansible.builtin.debug:
-        var: device_response
 
-    - name: Execute 'getAllAccessPolicy' operation
-      cisco.fmcansible.fmc_configuration:
-        operation: "getAllAccessPolicy"
-        path_params:
-          domainUUID: "{{ item.uuid }}"
-        query_params:
-            # name: "{{ name }}"
-            # filter: "{{ filter }}"
-            # offset: "{{ offset }}"
-            # limit: "{{ limit }}"
-            # expanded: "{{ expanded }}"
-      loop: "{{ domain }}"
-      register: "allAccessPolicy"
+    - name: Play with access policies
+      tags:
+        - access_policies
+        - never
+      block:
+        - name: Get Access Policy
+          cisco.fmcansible.fmc_configuration:
+            operation: "getAllAccessPolicy"
+            register_as: AllAccessPolicies
+            filters:
+            path_params:
+              domainUUID: "{{ domain[0].uuid }}"
+            query_params:
+                # name: 'AP_test'
+                # name: "{{ name }}"
+                # filter: "{{ filter }}"
+                # offset: "{{ offset }}"
+                # limit: "{{ limit }}"
+                # expanded: "{{ expanded }}"
 
-    - name: debug "allAccessPolicy"
-      ansible.builtin.debug:
-        var: "allAccessPolicy"
+        - name: debug "allAccessPolicy"
+          ansible.builtin.debug:
+            var: "AllAccessPolicies"
+            verbosity: 2
 
-    # - name: Execute 'getAccessPolicy' operation
-    #   cisco.fmcansible.fmc_configuration:
-    #     operation: "getAccessPolicy"
-    #     path_params:
-    #         objectId: "{{ object_id }}"
-    #         domainUUID: "{{ domain_uuid }}"
-    #   loop: "{{ allAccessRule['response']['items'][0] }}"
-    #   register: accessPolicy
+        - name: Get Access Policy
+          cisco.fmcansible.fmc_configuration:
+            operation: "getAllAccessPolicy"
+            register_as: aspecificaccesspolicy
+            filters:
+              name: "{{ accesspolicy_name | default('AccessPolicy_test') }}"
+            path_params:
+              domainUUID: "{{ domain[0].uuid }}"
+            query_params:
+                # name: 'AP_test'
+                # name: "{{ name }}"
+                # filter: "{{ filter }}"
+                # offset: "{{ offset }}"
+                # limit: "{{ limit }}"
+                # expanded: "{{ expanded }}"
 
-    - name: Execute 'getAllAccessRule' operation
-      vars:
-        container_uuid: "005056BF-7B88-0ed3-0000-012885226097"
-      cisco.fmcansible.fmc_configuration:
-        operation: "getAllAccessRule"
-        path_params:
-          containerUUID: "{{ container_uuid }}"
-          domainUUID: "{{ domain_uuid }}"
-        query_params:
-            # filter: "{{ filter }}"
-            # offset: "{{ offset }}"
-            # limit: "{{ limit }}"
-            # expanded: "{{ expanded }}"
-      register: allAccessRule
+        - name: Execute 'getAccessPolicy' operation
+          cisco.fmcansible.fmc_configuration:
+            operation: "getAccessPolicy"
+            register_as: accessPolicy
+            path_params:
+              objectId: "{{ aspecificaccesspolicy[0]['id'] }}"
+              domainUUID: "{{ domain[0].uuid }}"
+            # query_params:
+                # name: "{{ name }}"
+                # filter: "{{ filter }}"
+                # offset: "{{ offset }}"
+                # limit: "{{ limit }}"
+                # expanded: "{{ expanded }}"
 
-    - name: debug "allAccessRule"
-      ansible.builtin.debug:
-        var: "allAccessRule"
+        - name: debug "AccessPolicy"
+          ansible.builtin.debug:
+            var: "accessPolicy"
+            verbosity: 2
 
-    - name: Execute 'getAccessRule' operation
-      vars:
-        container_uuid: "005056BF-7B88-0ed3-0000-012885226097"
-      cisco.fmcansible.fmc_configuration:
-        operation: "getAccessRule"
-        path_params:
-          objectId: "{{ item.id }}"
-          containerUUID: "{{ container_uuid }}"
-          domainUUID: "{{ domain_uuid }}"
-      loop: "{{ allAccessRule['response']['items'] }}"
-      register: accessRule
 
-    - name: debug "accessRule"
-      ansible.builtin.debug:
-        var: "accessRule"      
+    - name: Add Access Policy Rule
+      tags:
+        - add_rule
+        - never
+      block:
+        - name: Get Access Policy
+          cisco.fmcansible.fmc_configuration:
+            operation: getAllAccessPolicy
+            register_as: accesspolicy
+            filters:
+              name: "{{ accesspolicy_name | default('NGFW-Access-Policy25') }}"
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+
+        - name: Find a file policy
+          cisco.fmcansible.fmc_configuration:
+            operation: getAllFilePolicy
+            register_as: file_policies
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+
+        - name: Create an access rule logging malware files
+          cisco.fmcansible.fmc_configuration:
+            operation: upsertAccessRule
+            data:
+              name: "{{ accessrule_name | default('Log traffic with malware files 2') }}"
+              action: ALLOW
+              logEnd: True
+              logBegin: False
+              sendEventsToFMC: True
+              filePolicy: "{{ file_policies[0] }}"
+              type: AccessRule
+            path_params:
+              containerUUID: '{{ accesspolicy[0].id }}'
+              domainUUID: '{{ domain[0].uuid }}'
+
+
+    - name: Delete Access Policy Rule
+      tags:
+        - del_rule
+        - never
+      block:
+        - name: Get Access Policy
+          cisco.fmcansible.fmc_configuration:
+            operation: getAllAccessPolicy
+            path_params:
+              domainUUID: '{{ domain[0].uuid }}'
+            filters:
+              name: '{{ delete_accesspolicy_name }}'
+            register_as: accesspolicy
+
+        - name: Get Access Rule
+          cisco.fmcansible.fmc_configuration:
+            operation: "getAllAccessRule"
+            path_params:
+              containerUUID: "{{ accesspolicy[0].id }}"
+              domainUUID: "{{ domain[0].uuid }}"
+            filters:
+              name: '{{ delete_accessrule_name }}'
+            register_as: accessrule
+
+            filters:
+              # name: "{{ accesspolicy_name | default('NGFW-Access-Policy25') }}"
+            path_params:
+              domainUUID: "{{ domain[0].uuid }}"
+            query_params:
+                # name: 'AP_test'
+                # name: "{{ name }}"
+                # filter: "{{ filter }}"
+                # offset: "{{ offset }}"
+                # limit: "{{ limit }}"
+                # expanded: "{{ expanded }}"
+
+        - name: Delete the access rule allowing trafic from/to Cisco DevNet
+          cisco.fmcansible.fmc_configuration:
+            operation: deleteAccessRule
+            path_params:
+              objectId: '{{ accessrule[0].id }}'
+              containerUUID: '{{ accesspolicy[0].id }}'
+              domainUUID: '{{ domain[0].uuid }}'
+
+
+    # - name: Set container_uuid
+    #   when: item.name == 'AP_test'
+    #   loop: "{{ allAccessPolicy['results'][0]['response']['items'] }}"      
+    #   ansible.builtin.set_fact:
+    #     container_uuid: "{{ item.id }}"
+  
+    # - name: debug "container_uuid"
+    #   ansible.builtin.debug:
+    #     var: "container_uuid"
+    #     verbosity: 2
+
+ 
 
     # - name: Execute 'getAllFTDHADeviceContainer' operation
     #   cisco.fmcansible.fmc_configuration:
